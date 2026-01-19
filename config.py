@@ -44,10 +44,12 @@ YEAR_START = date(CURRENT_YEAR, 1, 1)
 
 # === DATA SOURCE ===
 # For local development
-CSV_PATH = "/home/adi/arch/life/data/apple-data/apple_data.csv"
+CSV_PATH_LOCAL = "/home/adi/arch/life/data/apple-data/apple_data.csv"
 
-# For Streamlit Cloud (Google Sheets)
-# GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID"
+# For Streamlit Cloud (Google Drive direct download)
+# File ID extracted from: https://drive.google.com/file/d/1GlakDmUsEyRDsra6q7-fPP2Tf-q3IeG_/view
+GDRIVE_FILE_ID = "1GlakDmUsEyRDsra6q7-fPP2Tf-q3IeG_"
+GDRIVE_URL = f"https://drive.google.com/uc?export=download&id={GDRIVE_FILE_ID}"
 
 # === UI CONFIG ===
 THEME = {

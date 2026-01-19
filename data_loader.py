@@ -7,17 +7,36 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional
 import streamlit as st
+import os
 
-from config import CSV_PATH
+from config import CSV_PATH_LOCAL, GDRIVE_URL
 
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
 def load_data() -> pd.DataFrame:
     """
     Load health data from CSV.
+    Tries Google Drive URL first (for Streamlit Cloud), falls back to local path.
     Returns DataFrame with date as index.
     """
-    df = pd.read_csv(CSV_PATH, parse_dates=['date'])
+    df = None
+    
+    # Try Google Drive first (works on Streamlit Cloud)
+    try:
+        df = pd.read_csv(GDRIVE_URL, parse_dates=['date'])
+        st.sidebar.success("📡 Data: Google Drive")
+    except Exception as e:
+        pass
+    
+    # Fall back to local file (for local development)
+    if df is None:
+        if os.path.exists(CSV_PATH_LOCAL):
+            df = pd.read_csv(CSV_PATH_LOCAL, parse_dates=['date'])
+            st.sidebar.info("📁 Data: Local")
+        else:
+            st.error(f"Could not load data from Google Drive or local path")
+            return pd.DataFrame()
+    
     df = df.set_index('date').sort_index()
     
     # Forward-fill certain columns that should persist
