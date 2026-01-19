@@ -1,9 +1,11 @@
 """
 Data loading and preprocessing for health dashboard.
 """
+from __future__ import annotations
 import pandas as pd
 from pathlib import Path
 from datetime import datetime, timedelta
+from typing import Optional
 import streamlit as st
 
 from config import CSV_PATH
@@ -32,7 +34,7 @@ def get_latest_data(df: pd.DataFrame) -> pd.Series:
     return df.iloc[-1]
 
 
-def get_yesterday_data(df: pd.DataFrame) -> pd.Series | None:
+def get_yesterday_data(df: pd.DataFrame) -> Optional[pd.Series]:
     """Get yesterday's data if available."""
     if len(df) >= 2:
         return df.iloc[-2]
@@ -72,7 +74,7 @@ def get_month_data(df: pd.DataFrame, months_ago: int = 0) -> pd.DataFrame:
     return df[mask]
 
 
-def get_year_data(df: pd.DataFrame, year: int | None = None) -> pd.DataFrame:
+def get_year_data(df: pd.DataFrame, year: Optional[int] = None) -> pd.DataFrame:
     """Get data for a specific year."""
     if year is None:
         year = df.index.max().year
@@ -86,7 +88,7 @@ def get_n_days_data(df: pd.DataFrame, n_days: int) -> pd.DataFrame:
     return df[df.index >= start_date]
 
 
-def get_weight_n_days_ago(df: pd.DataFrame, n_days: int) -> float | None:
+def get_weight_n_days_ago(df: pd.DataFrame, n_days: int) -> Optional[float]:
     """Get weight from n days ago."""
     today = df.index.max()
     target_date = today - timedelta(days=n_days)

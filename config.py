@@ -1,6 +1,7 @@
 """
 Configuration for health dashboard goals and targets.
 """
+from __future__ import annotations
 from datetime import date
 
 # === BODY GOALS ===

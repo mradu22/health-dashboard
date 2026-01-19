@@ -1,8 +1,10 @@
 """
 Metrics calculations for health dashboard goals and trends.
 """
+from __future__ import annotations
 import pandas as pd
 from datetime import date, timedelta
+from typing import Optional, Tuple
 
 from config import (
     GYM_SESSIONS_PER_WEEK,
@@ -71,7 +73,7 @@ def cardio_year_progress(df_year: pd.DataFrame) -> tuple[float, float, float]:
 
 # === BODY METRICS ===
 
-def weight_change(current_kg: float, previous_kg: float | None) -> float | None:
+def weight_change(current_kg: float, previous_kg: Optional[float]) -> Optional[float]:
     """Calculate weight change in kg."""
     if previous_kg is None:
         return None
@@ -107,7 +109,7 @@ def protein_status(protein_g: float, weight_kg: float) -> tuple[str, float, floa
 
 # === SLEEP METRICS ===
 
-def sleep_quality_score(row: pd.Series) -> float | None:
+def sleep_quality_score(row: pd.Series) -> Optional[float]:
     """
     Calculate sleep quality score (0-100).
     Weighted: deep sleep (40%) + REM (30%) + low interruptions (30%)
@@ -165,7 +167,7 @@ def rolling_average(df: pd.DataFrame, column: str, window: int = 7) -> pd.Series
     return df[column].rolling(window=window, min_periods=1).mean()
 
 
-def compare_periods(current_df: pd.DataFrame, previous_df: pd.DataFrame, column: str) -> float | None:
+def compare_periods(current_df: pd.DataFrame, previous_df: pd.DataFrame, column: str) -> Optional[float]:
     """
     Compare average of column between two periods.
     Returns the difference (current - previous).

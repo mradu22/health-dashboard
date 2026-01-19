@@ -1,11 +1,13 @@
 """
 Health Dashboard - Personal health tracking with Streamlit.
 """
+from __future__ import annotations
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+from typing import Optional
 
 from data_loader import (
     load_data,
@@ -118,7 +120,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-def format_delta(value: float | None, unit: str = "", inverse: bool = False) -> str:
+def format_delta(value: Optional[float], unit: str = "", inverse: bool = False) -> str:
     """Format a delta value with + or - prefix."""
     if value is None:
         return "—"
@@ -127,7 +129,7 @@ def format_delta(value: float | None, unit: str = "", inverse: bool = False) -> 
     return f"{sign}{value:.1f}{unit}"
 
 
-def delta_color(value: float | None, inverse: bool = False) -> str:
+def delta_color(value: Optional[float], inverse: bool = False) -> str:
     """Return color based on delta direction."""
     if value is None:
         return "off"
@@ -377,12 +379,14 @@ def main():
     
     with col2:
         weight_2w = get_weight_n_days_ago(df, 14)
-        change_2w = weight_change(weight, weight_2w) if weight else None
+        change_2w = weight_change(weight, weight_2w) if weight and weight_2w else None
+        change_2w_str = format_delta(change_2w, ' kg') if change_2w is not None and not pd.isna(change_2w) else '—'
+        color_2w = '#4CAF50' if change_2w and change_2w < 0 else '#FF5252' if change_2w and change_2w > 0 else '#fff'
         st.markdown(f"""
         <div class="goal-card">
             <div class="goal-title">vs 2 Weeks Ago</div>
-            <div class="goal-value" style="color: {'#4CAF50' if change_2w and change_2w < 0 else '#FF5252' if change_2w and change_2w > 0 else '#fff'}">
-                {format_delta(change_2w, ' kg') if change_2w else '—'}
+            <div class="goal-value" style="color: {color_2w}">
+                {change_2w_str}
             </div>
         </div>
         """, unsafe_allow_html=True)
