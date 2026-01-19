@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 
 # === PROJECT VERSION ===
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 # === UNIT CONVERSIONS ===
 KG_TO_LBS = 2.205

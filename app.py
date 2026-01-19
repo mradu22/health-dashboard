@@ -202,10 +202,10 @@ def create_trend_chart(df: pd.DataFrame, column: str, title: str,
     return fig
 
 
-def fit_polynomial_with_ci(x_vals: np.ndarray, y_vals: np.ndarray, degree: int = 2) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def fit_polynomial_with_ci(x_vals: np.ndarray, y_vals: np.ndarray, degree: int = 2) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float]:
     """
-    Fit polynomial and calculate 95% CI.
-    Returns: (x_smooth, y_fit, y_lower, y_upper, coefficients)
+    Fit polynomial and calculate 95% CI for slope coefficient.
+    Returns: (x_smooth, y_smooth, coefficients, slope_ci)
     """
     # Remove NaN values
     mask = ~np.isnan(y_vals)
@@ -213,91 +213,97 @@ def fit_polynomial_with_ci(x_vals: np.ndarray, y_vals: np.ndarray, degree: int =
     y_clean = y_vals[mask]
     
     if len(x_clean) < degree + 1:
-        return None, None, None, None, None
+        return None, None, None, None
     
-    # Fit polynomial
-    coeffs = np.polyfit(x_clean, y_clean, degree)
+    # Fit polynomial using least squares for coefficient SE estimation
+    # Build Vandermonde matrix for polynomial regression
+    X = np.vander(x_clean, degree + 1)
+    
+    # Solve least squares
+    coeffs, residuals, rank, s = np.linalg.lstsq(X, y_clean, rcond=None)
     poly = np.poly1d(coeffs)
     
-    # Calculate fitted values and residuals
+    # Calculate residuals and MSE
     y_fit = poly(x_clean)
-    residuals = y_clean - y_fit
-    
-    # Standard error of estimate
+    resid = y_clean - y_fit
     n = len(y_clean)
-    p = degree + 1  # number of parameters
-    sse = np.sum(residuals**2)
-    mse = sse / (n - p)
-    se = np.sqrt(mse)
+    p = degree + 1
+    mse = np.sum(resid**2) / (n - p)
     
-    # For prediction interval (approximate 95% CI using t-distribution)
-    # Simplified: using 1.96 * SE for approximate 95% CI
-    t_val = 1.96
+    # Variance-covariance matrix of coefficients
+    try:
+        cov_matrix = mse * np.linalg.inv(X.T @ X)
+        # SE of linear coefficient (index 1 in coeffs for quadratic)
+        se_linear = np.sqrt(cov_matrix[1, 1])
+        # 95% CI = 1.96 * SE
+        slope_ci = 1.96 * se_linear
+    except:
+        slope_ci = 0.0
     
     # Generate smooth x values for plotting
     x_smooth = np.linspace(x_clean.min(), x_clean.max(), 50)
     y_smooth = poly(x_smooth)
     
-    # Calculate leverage-based CI (simplified)
-    # For a more accurate CI, we'd need the full variance-covariance matrix
-    # This is an approximation
-    ci_range = t_val * se * 1.5  # multiplier for visualization
-    y_lower = y_smooth - ci_range
-    y_upper = y_smooth + ci_range
-    
-    return x_smooth, y_smooth, y_lower, y_upper, coeffs
+    return x_smooth, y_smooth, coeffs, slope_ci
 
 
-def format_poly_equation(coeffs: np.ndarray, ci_width: float) -> str:
-    """Format polynomial coefficients for display with 95% CI."""
+def format_regression_annotation(coeffs: np.ndarray, slope_ci: float, unit: str = "") -> str:
+    """Format regression coefficient with 95% CI for chart annotation."""
     if coeffs is None or len(coeffs) < 3:
         return ""
-    # coeffs[0] is x^2, coeffs[1] is x, coeffs[2] is constant
+    # For quadratic: y = ax² + bx + c
+    # coeffs[0] = a (quadratic), coeffs[1] = b (linear), coeffs[2] = c (constant)
     a, b, c = coeffs[0], coeffs[1], coeffs[2]
-    # Show simplified: slope direction and CI
-    slope_per_day = 2 * a * 7 + b  # approximate weekly slope at midpoint
-    return f"Δ/wk: {slope_per_day:.2f} ± {ci_width:.1f}"
+    
+    # Daily slope at midpoint of data (for interpretation)
+    # For 7-14 day data, midpoint is around day 7
+    midpoint = 7
+    daily_slope = 2 * a * midpoint + b
+    
+    # Format: slope/day ± CI
+    sign = "+" if daily_slope > 0 else ""
+    return f"slope: {sign}{daily_slope:.3f}{unit}/day ± {slope_ci:.3f}"
 
 
 def create_weight_chart_lbs(df: pd.DataFrame) -> go.Figure:
-    """Create weight chart in lbs with quadratic trendline and 95% CI."""
+    """Create weight chart in lbs with 7-day avg and quadratic trendline."""
     fig = go.Figure()
     
     weight_lbs = df['weight_lbs'].dropna()
     
-    # Weight data points
+    # Weight data points with line
     fig.add_trace(go.Scatter(
         x=df.index,
         y=df['weight_lbs'],
-        mode='markers',
-        name='Weight',
-        marker=dict(color='#2196F3', size=7),
+        mode='markers+lines',
+        name='Daily',
+        line=dict(color='#2196F3', width=1),
+        marker=dict(color='#2196F3', size=6),
+        opacity=0.7,
     ))
     
-    # Quadratic trendline with 95% CI
+    # 7-day rolling average
     if len(weight_lbs) >= 3:
-        # Convert dates to numeric for regression
+        rolling_7d = rolling_average(df, 'weight_lbs', window=7)
+        fig.add_trace(go.Scatter(
+            x=df.index,
+            y=rolling_7d,
+            mode='lines',
+            name='7d Avg',
+            line=dict(color='#4CAF50', width=2),
+        ))
+    
+    # Quadratic trendline
+    annotation_text = ""
+    if len(weight_lbs) >= 3:
         x_numeric = np.arange(len(weight_lbs))
         y_vals = weight_lbs.values
         
-        x_smooth, y_smooth, y_lower, y_upper, coeffs = fit_polynomial_with_ci(x_numeric, y_vals, degree=2)
+        x_smooth, y_smooth, coeffs, slope_ci = fit_polynomial_with_ci(x_numeric, y_vals, degree=2)
         
         if x_smooth is not None:
-            # Map smooth x values back to dates
             date_range = weight_lbs.index
             x_dates = pd.to_datetime([date_range[0] + pd.Timedelta(days=int(x)) for x in x_smooth])
-            
-            # 95% CI band
-            fig.add_trace(go.Scatter(
-                x=list(x_dates) + list(x_dates[::-1]),
-                y=list(y_upper) + list(y_lower[::-1]),
-                fill='toself',
-                fillcolor='rgba(33, 150, 243, 0.15)',
-                line=dict(color='rgba(255,255,255,0)'),
-                hoverinfo='skip',
-                showlegend=False,
-                name='95% CI',
-            ))
             
             # Trendline
             fig.add_trace(go.Scatter(
@@ -305,17 +311,16 @@ def create_weight_chart_lbs(df: pd.DataFrame) -> go.Figure:
                 y=y_smooth,
                 mode='lines',
                 name='Trend',
-                line=dict(color='#FF5722', width=2, dash='solid'),
+                line=dict(color='#FF5722', width=2, dash='dot'),
             ))
             
-            # Calculate CI width for annotation
-            ci_width = (y_upper[len(y_upper)//2] - y_lower[len(y_lower)//2]) / 2
-            eq_text = format_poly_equation(coeffs, ci_width)
+            # Format annotation
+            annotation_text = format_regression_annotation(coeffs, slope_ci, " lbs")
     
     fig.update_layout(
         title=dict(text="Weight Trajectory", font=dict(size=14)),
-        margin=dict(l=20, r=20, t=40, b=20),
-        height=250,
+        margin=dict(l=20, r=20, t=40, b=35),
+        height=260,
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         xaxis=dict(showgrid=False, color='#666'),
@@ -324,46 +329,59 @@ def create_weight_chart_lbs(df: pd.DataFrame) -> go.Figure:
         hovermode='x unified',
     )
     
+    # Add regression annotation at bottom right
+    if annotation_text:
+        fig.add_annotation(
+            text=annotation_text,
+            xref="paper", yref="paper",
+            x=1.0, y=-0.12,
+            showarrow=False,
+            font=dict(size=10, color='#888'),
+            xanchor='right',
+        )
+    
     return fig
 
 
 def create_body_fat_chart(df: pd.DataFrame) -> go.Figure:
-    """Create body fat % chart with quadratic trendline and 95% CI."""
+    """Create body fat % chart with 7-day avg and quadratic trendline."""
     fig = go.Figure()
     
     body_fat = df['body_fat_pct'].dropna()
     
-    # Body fat data points
+    # Body fat data points with line
     fig.add_trace(go.Scatter(
         x=df.index,
         y=df['body_fat_pct'],
-        mode='markers',
-        name='Body Fat',
-        marker=dict(color='#FF9800', size=7),
+        mode='markers+lines',
+        name='Daily',
+        line=dict(color='#FF9800', width=1),
+        marker=dict(color='#FF9800', size=6),
+        opacity=0.7,
     ))
     
-    # Quadratic trendline with 95% CI
+    # 7-day rolling average
+    if len(body_fat) >= 3:
+        rolling_7d = rolling_average(df, 'body_fat_pct', window=7)
+        fig.add_trace(go.Scatter(
+            x=df.index,
+            y=rolling_7d,
+            mode='lines',
+            name='7d Avg',
+            line=dict(color='#4CAF50', width=2),
+        ))
+    
+    # Quadratic trendline
+    annotation_text = ""
     if len(body_fat) >= 3:
         x_numeric = np.arange(len(body_fat))
         y_vals = body_fat.values
         
-        x_smooth, y_smooth, y_lower, y_upper, coeffs = fit_polynomial_with_ci(x_numeric, y_vals, degree=2)
+        x_smooth, y_smooth, coeffs, slope_ci = fit_polynomial_with_ci(x_numeric, y_vals, degree=2)
         
         if x_smooth is not None:
             date_range = body_fat.index
             x_dates = pd.to_datetime([date_range[0] + pd.Timedelta(days=int(x)) for x in x_smooth])
-            
-            # 95% CI band
-            fig.add_trace(go.Scatter(
-                x=list(x_dates) + list(x_dates[::-1]),
-                y=list(y_upper) + list(y_lower[::-1]),
-                fill='toself',
-                fillcolor='rgba(255, 152, 0, 0.15)',
-                line=dict(color='rgba(255,255,255,0)'),
-                hoverinfo='skip',
-                showlegend=False,
-                name='95% CI',
-            ))
             
             # Trendline
             fig.add_trace(go.Scatter(
@@ -371,13 +389,16 @@ def create_body_fat_chart(df: pd.DataFrame) -> go.Figure:
                 y=y_smooth,
                 mode='lines',
                 name='Trend',
-                line=dict(color='#E91E63', width=2, dash='solid'),
+                line=dict(color='#E91E63', width=2, dash='dot'),
             ))
+            
+            # Format annotation
+            annotation_text = format_regression_annotation(coeffs, slope_ci, "%")
     
     fig.update_layout(
         title=dict(text="Body Fat Trajectory", font=dict(size=14)),
-        margin=dict(l=20, r=20, t=40, b=20),
-        height=250,
+        margin=dict(l=20, r=20, t=40, b=35),
+        height=260,
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         xaxis=dict(showgrid=False, color='#666'),
@@ -385,6 +406,17 @@ def create_body_fat_chart(df: pd.DataFrame) -> go.Figure:
         legend=dict(orientation='h', y=1.15, font=dict(size=9)),
         hovermode='x unified',
     )
+    
+    # Add regression annotation at bottom right
+    if annotation_text:
+        fig.add_annotation(
+            text=annotation_text,
+            xref="paper", yref="paper",
+            x=1.0, y=-0.12,
+            showarrow=False,
+            font=dict(size=10, color='#888'),
+            xanchor='right',
+        )
     
     return fig
 
@@ -536,6 +568,21 @@ def main():
         cals_yd = yesterday.get('calories') if yesterday is not None else None
         cals_delta = cals - cals_yd if cals and cals_yd else None
         st.metric("Calories", f"{cals:,.0f}" if cals else "—", delta=format_delta(cals_delta) if cals_delta else None)
+    
+    # Row 4: Squat, Bench, Deadlift
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        squat = today.get('squat_lbs')
+        st.metric("Squat", f"{squat:.0f} lbs" if squat else "—")
+    
+    with col2:
+        bench = today.get('bench_lbs')
+        st.metric("Bench", f"{bench:.0f} lbs" if bench else "—")
+    
+    with col3:
+        deadlift = today.get('deadlift_lbs')
+        st.metric("Deadlift", f"{deadlift:.0f} lbs" if deadlift else "—")
     
     # === WEEKLY GOALS (4 rings) ===
     st.markdown('<div class="section-header">Weekly Goals</div>', unsafe_allow_html=True)
@@ -693,9 +740,6 @@ def main():
             sodium = today.get('sodium_mg')
             st.metric("Sodium", f"{sodium:.0f}mg" if sodium else "—")
     
-    # === FOOTER ===
-    st.markdown("---")
-    st.caption("Data from Apple Health via Health Auto Export")
 
 
 if __name__ == "__main__":
