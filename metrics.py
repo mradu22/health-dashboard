@@ -8,12 +8,15 @@ from typing import Optional, Tuple
 
 from config import (
     GYM_SESSIONS_PER_WEEK,
+    CARDIO_SESSIONS_PER_WEEK,
     CARDIO_MIN_PER_SESSION,
-    CARDIO_KM_PER_MONTH,
-    CARDIO_KM_PER_YEAR,
+    CARDIO_KM_PER_WEEK,
     WEIGHT_GOAL_KG,
+    WEIGHT_GOAL_LBS,
     BODY_FAT_GOAL_PCT,
     SLEEP_HOURS_MIN,
+    SLEEP_DAYS_PER_WEEK,
+    KG_TO_LBS,
     get_protein_target,
 )
 
@@ -51,43 +54,79 @@ def gym_goal_progress(df_week: pd.DataFrame) -> tuple[int, int, float]:
     return (current, goal, pct)
 
 
-def cardio_month_progress(df_month: pd.DataFrame) -> tuple[float, float, float]:
+def cardio_sessions_progress(df_week: pd.DataFrame) -> tuple[int, int, float]:
     """
-    Returns (current_km, goal_km, percentage) for cardio this month.
+    Returns (current, goal, percentage) for cardio sessions this week.
+    Cardio session = day with cardio_min >= 15.
     """
-    current = get_total_distance_km(df_month)
-    goal = CARDIO_KM_PER_MONTH
+    current = count_cardio_sessions(df_week, CARDIO_MIN_PER_SESSION)
+    goal = CARDIO_SESSIONS_PER_WEEK
     pct = min(current / goal * 100, 100) if goal > 0 else 0
     return (current, goal, pct)
 
 
-def cardio_year_progress(df_year: pd.DataFrame) -> tuple[float, float, float]:
+def cardio_km_week_progress(df_week: pd.DataFrame) -> tuple[float, float, float]:
     """
-    Returns (current_km, goal_km, percentage) for cardio this year.
+    Returns (current_km, goal_km, percentage) for cardio km this week.
     """
-    current = get_total_distance_km(df_year)
-    goal = CARDIO_KM_PER_YEAR
+    current = get_total_distance_km(df_week)
+    goal = CARDIO_KM_PER_WEEK
     pct = min(current / goal * 100, 100) if goal > 0 else 0
     return (current, goal, pct)
+
+
+def sleep_days_progress(df_week: pd.DataFrame) -> tuple[int, int, float]:
+    """
+    Returns (days_met, goal, percentage) for days with sleep >= 7 hours this week.
+    """
+    if 'sleep_hours' not in df_week.columns:
+        return (0, SLEEP_DAYS_PER_WEEK, 0)
+    
+    valid = df_week['sleep_hours'].notna()
+    met = (df_week.loc[valid, 'sleep_hours'] >= SLEEP_HOURS_MIN).sum()
+    goal = SLEEP_DAYS_PER_WEEK
+    pct = min(met / goal * 100, 100) if goal > 0 else 0
+    return (int(met), goal, pct)
 
 
 # === BODY METRICS ===
 
-def weight_change(current_kg: float, previous_kg: Optional[float]) -> Optional[float]:
-    """Calculate weight change in kg."""
-    if previous_kg is None:
+def kg_to_lbs(kg: Optional[float]) -> Optional[float]:
+    """Convert kg to lbs."""
+    if kg is None or pd.isna(kg):
         return None
-    return current_kg - previous_kg
+    return kg * KG_TO_LBS
 
 
-def weight_to_goal(current_kg: float) -> float:
-    """Calculate kg remaining to weight goal."""
-    return current_kg - WEIGHT_GOAL_KG
+def weight_change_lbs(current_kg: Optional[float], previous_kg: Optional[float]) -> Optional[float]:
+    """Calculate weight change in lbs."""
+    if current_kg is None or previous_kg is None:
+        return None
+    if pd.isna(current_kg) or pd.isna(previous_kg):
+        return None
+    return (current_kg - previous_kg) * KG_TO_LBS
+
+
+def weight_to_goal_lbs(current_kg: Optional[float]) -> Optional[float]:
+    """Calculate lbs remaining to weight goal."""
+    if current_kg is None or pd.isna(current_kg):
+        return None
+    current_lbs = current_kg * KG_TO_LBS
+    return current_lbs - WEIGHT_GOAL_LBS
 
 
 def body_fat_to_goal(current_pct: float) -> float:
     """Calculate body fat % remaining to goal."""
     return current_pct - BODY_FAT_GOAL_PCT
+
+
+def body_fat_change(current_pct: Optional[float], previous_pct: Optional[float]) -> Optional[float]:
+    """Calculate body fat % change."""
+    if current_pct is None or previous_pct is None:
+        return None
+    if pd.isna(current_pct) or pd.isna(previous_pct):
+        return None
+    return current_pct - previous_pct
 
 
 # === PROTEIN METRICS ===

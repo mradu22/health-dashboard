@@ -99,3 +99,16 @@ def get_weight_n_days_ago(df: pd.DataFrame, n_days: int) -> Optional[float]:
         closest = df[mask].iloc[-1]
         return closest.get('weight_kg')
     return None
+
+
+def get_body_fat_n_days_ago(df: pd.DataFrame, n_days: int) -> Optional[float]:
+    """Get body fat % from n days ago."""
+    today = df.index.max()
+    target_date = today - timedelta(days=n_days)
+    
+    # Find closest date on or before target
+    mask = df.index <= target_date
+    if mask.any():
+        closest = df[mask].iloc[-1]
+        return closest.get('body_fat_pct')
+    return None
