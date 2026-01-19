@@ -247,39 +247,47 @@ def fit_polynomial_with_ci(x_vals: np.ndarray, y_vals: np.ndarray, degree: int =
     return x_smooth, y_smooth, coeffs, slope_ci
 
 
-def format_regression_annotation(coeffs: np.ndarray, slope_ci: float, unit: str = "") -> str:
-    """Format regression coefficient with 95% CI for chart annotation."""
+def format_regression_latex(coeffs: np.ndarray, slope_ci: float, unit: str = "") -> str:
+    """Format regression equation in LaTeX for display below chart."""
     if coeffs is None or len(coeffs) < 3:
         return ""
     # For quadratic: y = ax² + bx + c
-    # coeffs[0] = a (quadratic), coeffs[1] = b (linear), coeffs[2] = c (constant)
     a, b, c = coeffs[0], coeffs[1], coeffs[2]
     
-    # Daily slope at midpoint of data (for interpretation)
-    # For 7-14 day data, midpoint is around day 7
+    # Format coefficients with appropriate signs
+    a_str = f"{a:.4f}"
+    b_sign = "+" if b >= 0 else "-"
+    b_str = f"{abs(b):.3f}"
+    c_sign = "+" if c >= 0 else "-"
+    c_str = f"{abs(c):.1f}"
+    
+    # LaTeX equation
+    equation = f"y = {a_str}t^2 {b_sign} {b_str}t {c_sign} {c_str}"
+    
+    # Add slope interpretation with CI
     midpoint = 7
     daily_slope = 2 * a * midpoint + b
+    slope_sign = "+" if daily_slope > 0 else ""
+    ci_str = f"\\quad \\text{{slope}}_{{t=7}}: {slope_sign}{daily_slope:.3f} \\pm {slope_ci:.3f} \\text{{{unit}/day}}"
     
-    # Format: slope/day ± CI
-    sign = "+" if daily_slope > 0 else ""
-    return f"slope: {sign}{daily_slope:.3f}{unit}/day ± {slope_ci:.3f}"
+    return equation + ci_str
 
 
-def create_weight_chart_lbs(df: pd.DataFrame) -> go.Figure:
-    """Create weight chart in lbs with 7-day avg and quadratic trendline."""
+def create_weight_chart_lbs(df: pd.DataFrame) -> Tuple[go.Figure, str]:
+    """Create weight chart in lbs with 7-day avg. Returns (figure, latex_equation)."""
     fig = go.Figure()
     
     weight_lbs = df['weight_lbs'].dropna()
     
-    # Weight data points with line
+    # Weight data points with line (larger markers)
     fig.add_trace(go.Scatter(
         x=df.index,
         y=df['weight_lbs'],
         mode='markers+lines',
         name='Daily',
         line=dict(color='#2196F3', width=1),
-        marker=dict(color='#2196F3', size=6),
-        opacity=0.7,
+        marker=dict(color='#2196F3', size=10),
+        opacity=0.8,
     ))
     
     # 7-day rolling average
@@ -293,34 +301,21 @@ def create_weight_chart_lbs(df: pd.DataFrame) -> go.Figure:
             line=dict(color='#4CAF50', width=2),
         ))
     
-    # Quadratic trendline
-    annotation_text = ""
+    # Calculate regression coefficients (but don't plot trendline)
+    latex_eq = ""
     if len(weight_lbs) >= 3:
         x_numeric = np.arange(len(weight_lbs))
         y_vals = weight_lbs.values
         
         x_smooth, y_smooth, coeffs, slope_ci = fit_polynomial_with_ci(x_numeric, y_vals, degree=2)
         
-        if x_smooth is not None:
-            date_range = weight_lbs.index
-            x_dates = pd.to_datetime([date_range[0] + pd.Timedelta(days=int(x)) for x in x_smooth])
-            
-            # Trendline
-            fig.add_trace(go.Scatter(
-                x=x_dates,
-                y=y_smooth,
-                mode='lines',
-                name='Trend',
-                line=dict(color='#FF5722', width=2, dash='dot'),
-            ))
-            
-            # Format annotation
-            annotation_text = format_regression_annotation(coeffs, slope_ci, " lbs")
+        if coeffs is not None:
+            latex_eq = format_regression_latex(coeffs, slope_ci, " lbs")
     
     fig.update_layout(
         title=dict(text="Weight Trajectory", font=dict(size=14)),
-        margin=dict(l=20, r=20, t=40, b=35),
-        height=260,
+        margin=dict(l=20, r=20, t=40, b=20),
+        height=240,
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         xaxis=dict(showgrid=False, color='#666'),
@@ -329,35 +324,24 @@ def create_weight_chart_lbs(df: pd.DataFrame) -> go.Figure:
         hovermode='x unified',
     )
     
-    # Add regression annotation at bottom right
-    if annotation_text:
-        fig.add_annotation(
-            text=annotation_text,
-            xref="paper", yref="paper",
-            x=1.0, y=-0.12,
-            showarrow=False,
-            font=dict(size=10, color='#888'),
-            xanchor='right',
-        )
-    
-    return fig
+    return fig, latex_eq
 
 
-def create_body_fat_chart(df: pd.DataFrame) -> go.Figure:
-    """Create body fat % chart with 7-day avg and quadratic trendline."""
+def create_body_fat_chart(df: pd.DataFrame) -> Tuple[go.Figure, str]:
+    """Create body fat % chart with 7-day avg. Returns (figure, latex_equation)."""
     fig = go.Figure()
     
     body_fat = df['body_fat_pct'].dropna()
     
-    # Body fat data points with line
+    # Body fat data points with line (larger markers)
     fig.add_trace(go.Scatter(
         x=df.index,
         y=df['body_fat_pct'],
         mode='markers+lines',
         name='Daily',
         line=dict(color='#FF9800', width=1),
-        marker=dict(color='#FF9800', size=6),
-        opacity=0.7,
+        marker=dict(color='#FF9800', size=10),
+        opacity=0.8,
     ))
     
     # 7-day rolling average
@@ -371,34 +355,21 @@ def create_body_fat_chart(df: pd.DataFrame) -> go.Figure:
             line=dict(color='#4CAF50', width=2),
         ))
     
-    # Quadratic trendline
-    annotation_text = ""
+    # Calculate regression coefficients (but don't plot trendline)
+    latex_eq = ""
     if len(body_fat) >= 3:
         x_numeric = np.arange(len(body_fat))
         y_vals = body_fat.values
         
         x_smooth, y_smooth, coeffs, slope_ci = fit_polynomial_with_ci(x_numeric, y_vals, degree=2)
         
-        if x_smooth is not None:
-            date_range = body_fat.index
-            x_dates = pd.to_datetime([date_range[0] + pd.Timedelta(days=int(x)) for x in x_smooth])
-            
-            # Trendline
-            fig.add_trace(go.Scatter(
-                x=x_dates,
-                y=y_smooth,
-                mode='lines',
-                name='Trend',
-                line=dict(color='#E91E63', width=2, dash='dot'),
-            ))
-            
-            # Format annotation
-            annotation_text = format_regression_annotation(coeffs, slope_ci, "%")
+        if coeffs is not None:
+            latex_eq = format_regression_latex(coeffs, slope_ci, "%")
     
     fig.update_layout(
         title=dict(text="Body Fat Trajectory", font=dict(size=14)),
-        margin=dict(l=20, r=20, t=40, b=35),
-        height=260,
+        margin=dict(l=20, r=20, t=40, b=20),
+        height=240,
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         xaxis=dict(showgrid=False, color='#666'),
@@ -407,18 +378,7 @@ def create_body_fat_chart(df: pd.DataFrame) -> go.Figure:
         hovermode='x unified',
     )
     
-    # Add regression annotation at bottom right
-    if annotation_text:
-        fig.add_annotation(
-            text=annotation_text,
-            xref="paper", yref="paper",
-            x=1.0, y=-0.12,
-            showarrow=False,
-            font=dict(size=10, color='#888'),
-            xanchor='right',
-        )
-    
-    return fig
+    return fig, latex_eq
 
 
 def create_sleep_chart(df: pd.DataFrame) -> go.Figure:
@@ -676,13 +636,19 @@ def main():
     
     with col1:
         if 'weight_lbs' in df_14d.columns and df_14d['weight_lbs'].notna().any():
-            fig = create_weight_chart_lbs(df_14d)
+            fig, weight_latex = create_weight_chart_lbs(df_14d)
             st.plotly_chart(fig, use_container_width=True)
+            # TODO: Fix LaTeX display (tabled T003)
+            # if weight_latex:
+            #     st.latex(weight_latex)
     
     with col2:
         if 'body_fat_pct' in df_14d.columns and df_14d['body_fat_pct'].notna().any():
-            fig = create_body_fat_chart(df_14d)
+            fig, bf_latex = create_body_fat_chart(df_14d)
             st.plotly_chart(fig, use_container_width=True)
+            # TODO: Fix LaTeX display (tabled T003)
+            # if bf_latex:
+            #     st.latex(bf_latex)
     
     # === HOMEOSTASIS ===
     st.markdown('<div class="section-header">Homeostasis</div>', unsafe_allow_html=True)
