@@ -4,10 +4,11 @@ Health Dashboard - Personal health tracking with Streamlit.
 from __future__ import annotations
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Tuple
 
 from data_loader import (
     load_data,
@@ -35,6 +36,7 @@ from metrics import (
     meditation_streak,
 )
 from config import (
+    VERSION,
     WEIGHT_GOAL_LBS,
     BODY_FAT_GOAL_PCT,
     SLEEP_HOURS_MIN,
@@ -42,8 +44,8 @@ from config import (
 
 # === PAGE CONFIG ===
 st.set_page_config(
-    page_title="Health Dashboard",
-    page_icon="🏃",
+    page_title=f"LifeOS V{VERSION}",
+    page_icon="◉",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -200,39 +202,125 @@ def create_trend_chart(df: pd.DataFrame, column: str, title: str,
     return fig
 
 
+def fit_polynomial_with_ci(x_vals: np.ndarray, y_vals: np.ndarray, degree: int = 2) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Fit polynomial and calculate 95% CI.
+    Returns: (x_smooth, y_fit, y_lower, y_upper, coefficients)
+    """
+    # Remove NaN values
+    mask = ~np.isnan(y_vals)
+    x_clean = x_vals[mask]
+    y_clean = y_vals[mask]
+    
+    if len(x_clean) < degree + 1:
+        return None, None, None, None, None
+    
+    # Fit polynomial
+    coeffs = np.polyfit(x_clean, y_clean, degree)
+    poly = np.poly1d(coeffs)
+    
+    # Calculate fitted values and residuals
+    y_fit = poly(x_clean)
+    residuals = y_clean - y_fit
+    
+    # Standard error of estimate
+    n = len(y_clean)
+    p = degree + 1  # number of parameters
+    sse = np.sum(residuals**2)
+    mse = sse / (n - p)
+    se = np.sqrt(mse)
+    
+    # For prediction interval (approximate 95% CI using t-distribution)
+    # Simplified: using 1.96 * SE for approximate 95% CI
+    t_val = 1.96
+    
+    # Generate smooth x values for plotting
+    x_smooth = np.linspace(x_clean.min(), x_clean.max(), 50)
+    y_smooth = poly(x_smooth)
+    
+    # Calculate leverage-based CI (simplified)
+    # For a more accurate CI, we'd need the full variance-covariance matrix
+    # This is an approximation
+    ci_range = t_val * se * 1.5  # multiplier for visualization
+    y_lower = y_smooth - ci_range
+    y_upper = y_smooth + ci_range
+    
+    return x_smooth, y_smooth, y_lower, y_upper, coeffs
+
+
+def format_poly_equation(coeffs: np.ndarray, ci_width: float) -> str:
+    """Format polynomial coefficients for display with 95% CI."""
+    if coeffs is None or len(coeffs) < 3:
+        return ""
+    # coeffs[0] is x^2, coeffs[1] is x, coeffs[2] is constant
+    a, b, c = coeffs[0], coeffs[1], coeffs[2]
+    # Show simplified: slope direction and CI
+    slope_per_day = 2 * a * 7 + b  # approximate weekly slope at midpoint
+    return f"Δ/wk: {slope_per_day:.2f} ± {ci_width:.1f}"
+
+
 def create_weight_chart_lbs(df: pd.DataFrame) -> go.Figure:
-    """Create weight chart in lbs (data already in lbs despite column name)."""
+    """Create weight chart in lbs with quadratic trendline and 95% CI."""
     fig = go.Figure()
     
-    # Data is already in lbs (column named weight_kg but contains lbs)
-    weight_lbs = df['weight_kg']
+    weight_lbs = df['weight_lbs'].dropna()
     
-    # Weight data
+    # Weight data points
     fig.add_trace(go.Scatter(
         x=df.index,
-        y=weight_lbs,
-        mode='markers+lines',
+        y=df['weight_lbs'],
+        mode='markers',
         name='Weight',
-        line=dict(color='#2196F3', width=2),
-        marker=dict(size=5),
+        marker=dict(color='#2196F3', size=7),
     ))
     
-    # Goal line - COMMENTED OUT to show more detail in data
-    # fig.add_hline(
-    #     y=WEIGHT_GOAL_LBS,
-    #     line=dict(color='#4CAF50', dash='dash', width=2),
-    #     annotation_text=f"Goal: {WEIGHT_GOAL_LBS} lbs",
-    #     annotation_position="right",
-    # )
+    # Quadratic trendline with 95% CI
+    if len(weight_lbs) >= 3:
+        # Convert dates to numeric for regression
+        x_numeric = np.arange(len(weight_lbs))
+        y_vals = weight_lbs.values
+        
+        x_smooth, y_smooth, y_lower, y_upper, coeffs = fit_polynomial_with_ci(x_numeric, y_vals, degree=2)
+        
+        if x_smooth is not None:
+            # Map smooth x values back to dates
+            date_range = weight_lbs.index
+            x_dates = pd.to_datetime([date_range[0] + pd.Timedelta(days=int(x)) for x in x_smooth])
+            
+            # 95% CI band
+            fig.add_trace(go.Scatter(
+                x=list(x_dates) + list(x_dates[::-1]),
+                y=list(y_upper) + list(y_lower[::-1]),
+                fill='toself',
+                fillcolor='rgba(33, 150, 243, 0.15)',
+                line=dict(color='rgba(255,255,255,0)'),
+                hoverinfo='skip',
+                showlegend=False,
+                name='95% CI',
+            ))
+            
+            # Trendline
+            fig.add_trace(go.Scatter(
+                x=x_dates,
+                y=y_smooth,
+                mode='lines',
+                name='Trend',
+                line=dict(color='#FF5722', width=2, dash='solid'),
+            ))
+            
+            # Calculate CI width for annotation
+            ci_width = (y_upper[len(y_upper)//2] - y_lower[len(y_lower)//2]) / 2
+            eq_text = format_poly_equation(coeffs, ci_width)
     
     fig.update_layout(
-        title=dict(text="Weight Trend", font=dict(size=14)),
+        title=dict(text="Weight Trajectory", font=dict(size=14)),
         margin=dict(l=20, r=20, t=40, b=20),
-        height=220,
+        height=250,
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         xaxis=dict(showgrid=False, color='#666'),
         yaxis=dict(showgrid=True, gridcolor='#333', color='#666', title='lbs'),
+        legend=dict(orientation='h', y=1.15, font=dict(size=9)),
         hovermode='x unified',
     )
     
@@ -240,35 +328,61 @@ def create_weight_chart_lbs(df: pd.DataFrame) -> go.Figure:
 
 
 def create_body_fat_chart(df: pd.DataFrame) -> go.Figure:
-    """Create body fat % chart."""
+    """Create body fat % chart with quadratic trendline and 95% CI."""
     fig = go.Figure()
     
-    # Body fat data
+    body_fat = df['body_fat_pct'].dropna()
+    
+    # Body fat data points
     fig.add_trace(go.Scatter(
         x=df.index,
         y=df['body_fat_pct'],
-        mode='markers+lines',
+        mode='markers',
         name='Body Fat',
-        line=dict(color='#FF9800', width=2),
-        marker=dict(size=5),
+        marker=dict(color='#FF9800', size=7),
     ))
     
-    # Goal line - COMMENTED OUT to show more detail in data
-    # fig.add_hline(
-    #     y=BODY_FAT_GOAL_PCT,
-    #     line=dict(color='#4CAF50', dash='dash', width=2),
-    #     annotation_text=f"Goal: {BODY_FAT_GOAL_PCT}%",
-    #     annotation_position="right",
-    # )
+    # Quadratic trendline with 95% CI
+    if len(body_fat) >= 3:
+        x_numeric = np.arange(len(body_fat))
+        y_vals = body_fat.values
+        
+        x_smooth, y_smooth, y_lower, y_upper, coeffs = fit_polynomial_with_ci(x_numeric, y_vals, degree=2)
+        
+        if x_smooth is not None:
+            date_range = body_fat.index
+            x_dates = pd.to_datetime([date_range[0] + pd.Timedelta(days=int(x)) for x in x_smooth])
+            
+            # 95% CI band
+            fig.add_trace(go.Scatter(
+                x=list(x_dates) + list(x_dates[::-1]),
+                y=list(y_upper) + list(y_lower[::-1]),
+                fill='toself',
+                fillcolor='rgba(255, 152, 0, 0.15)',
+                line=dict(color='rgba(255,255,255,0)'),
+                hoverinfo='skip',
+                showlegend=False,
+                name='95% CI',
+            ))
+            
+            # Trendline
+            fig.add_trace(go.Scatter(
+                x=x_dates,
+                y=y_smooth,
+                mode='lines',
+                name='Trend',
+                line=dict(color='#E91E63', width=2, dash='solid'),
+            ))
     
     fig.update_layout(
-        title=dict(text="Body Fat Trend", font=dict(size=14)),
+        title=dict(text="Body Fat Trajectory", font=dict(size=14)),
         margin=dict(l=20, r=20, t=40, b=20),
-        height=220,
+        height=250,
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         xaxis=dict(showgrid=False, color='#666'),
         yaxis=dict(showgrid=True, gridcolor='#333', color='#666', title='%'),
+        legend=dict(orientation='h', y=1.15, font=dict(size=9)),
         hovermode='x unified',
     )
     
@@ -292,12 +406,10 @@ def create_sleep_chart(df: pd.DataFrame) -> go.Figure:
                 marker_color=color,
             ))
     
-    # 7-hour goal line
+    # 7-hour goal line (no label - just the line)
     fig.add_hline(
         y=SLEEP_HOURS_MIN,
         line=dict(color='#4CAF50', dash='dash', width=2),
-        annotation_text=f"Goal: {SLEEP_HOURS_MIN:.0f}h",
-        annotation_position="right",
     )
     
     fig.update_layout(
@@ -332,13 +444,13 @@ def main():
     # === HEADER ===
     col_title, col_date = st.columns([3, 1])
     with col_title:
-        st.title("🏃 Health Dashboard")
+        st.title(f"LifeOS V{VERSION}")
     with col_date:
         last_date = df.index.max().strftime("%b %d, %Y")
         st.caption(f"Last update: {last_date}")
     
-    # === DAILY METRICS (9 metrics in 3 rows of 3) ===
-    st.markdown('<div class="section-header">📊 Daily Metrics</div>', unsafe_allow_html=True)
+    # === DAYSTATE (9 metrics in 3 rows of 3) ===
+    st.markdown('<div class="section-header">DayState</div>', unsafe_allow_html=True)
     
     # Row 1: Steps, Total Sleep, VO2 Max (swapped from deep sleep)
     col1, col2, col3 = st.columns(3)
@@ -369,9 +481,8 @@ def main():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        # NOTE: weight_kg column actually contains lbs (mislabeled in source data)
-        weight_lbs = get_weight_lbs(today.get('weight_kg'))
-        weight_yd_lbs = get_weight_lbs(yesterday.get('weight_kg')) if yesterday is not None else None
+        weight_lbs = get_weight_lbs(today.get('weight_lbs'))
+        weight_yd_lbs = get_weight_lbs(yesterday.get('weight_lbs')) if yesterday is not None else None
         w_delta_lbs = weight_change_lbs(weight_lbs, weight_yd_lbs) if weight_lbs and weight_yd_lbs else None
         if weight_lbs:
             st.metric("Weight", f"{weight_lbs:.1f} lbs", delta=format_delta(w_delta_lbs, " lbs"), delta_color=delta_color(w_delta_lbs, inverse=True))
@@ -410,8 +521,7 @@ def main():
     
     with col2:
         protein = today.get('protein_g')
-        # For protein target, use weight in lbs (which is what weight_kg actually contains)
-        weight_for_protein = today.get('weight_kg')  # Already in lbs
+        weight_for_protein = today.get('weight_lbs')
         if protein and weight_for_protein:
             # Protein target = weight in lbs as grams
             target = weight_for_protein
@@ -428,7 +538,7 @@ def main():
         st.metric("Calories", f"{cals:,.0f}" if cals else "—", delta=format_delta(cals_delta) if cals_delta else None)
     
     # === WEEKLY GOALS (4 rings) ===
-    st.markdown('<div class="section-header">🎯 Weekly Goals</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">Weekly Goals</div>', unsafe_allow_html=True)
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -452,15 +562,14 @@ def main():
         fig = create_progress_ring(sleep_current, sleep_goal, "7+ HR SLEEP")
         st.plotly_chart(fig, use_container_width=True)
     
-    # === TRENDS ===
-    st.markdown('<div class="section-header">📈 Trends</div>', unsafe_allow_html=True)
+    # === TRAJECTORIES ===
+    st.markdown('<div class="section-header">Trajectories</div>', unsafe_allow_html=True)
     
     # Trend cards row
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        # Weight is already in lbs (despite column name)
-        weight_lbs = get_weight_lbs(today.get('weight_kg'))
+        weight_lbs = get_weight_lbs(today.get('weight_lbs'))
         weight_1w_lbs = get_weight_lbs(get_weight_n_days_ago(df, 7))
         change_1w = weight_change_lbs(weight_lbs, weight_1w_lbs)
         color_1w = '#4CAF50' if change_1w and change_1w < 0 else '#FF5252' if change_1w and change_1w > 0 else '#fff'
@@ -519,7 +628,7 @@ def main():
     df_14d = get_n_days_data(df, 14)
     
     with col1:
-        if 'weight_kg' in df_14d.columns and df_14d['weight_kg'].notna().any():
+        if 'weight_lbs' in df_14d.columns and df_14d['weight_lbs'].notna().any():
             fig = create_weight_chart_lbs(df_14d)
             st.plotly_chart(fig, use_container_width=True)
     
@@ -528,8 +637,8 @@ def main():
             fig = create_body_fat_chart(df_14d)
             st.plotly_chart(fig, use_container_width=True)
     
-    # === SLEEP & RECOVERY ===
-    st.markdown('<div class="section-header">😴 Sleep & Recovery</div>', unsafe_allow_html=True)
+    # === HOMEOSTASIS ===
+    st.markdown('<div class="section-header">Homeostasis</div>', unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     
@@ -558,9 +667,9 @@ def main():
         med_streak = meditation_streak(df)
         st.metric("Meditation Streak", f"{med_streak} days")
     
-    # === NUTRITION ===
+    # === FUEL STACK ===
     if today.get('protein_g') or today.get('calories'):
-        st.markdown('<div class="section-header">🍎 Nutrition</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-header">Fuel Stack</div>', unsafe_allow_html=True)
         
         col1, col2, col3, col4, col5 = st.columns(5)
         

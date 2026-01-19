@@ -21,7 +21,7 @@ def load_data() -> pd.DataFrame:
     df = df.set_index('date').sort_index()
     
     # Forward-fill certain columns that should persist
-    forward_fill_cols = ['weight_kg', 'body_fat_pct', 'muscle_mass_kg', 'bmi', 'vo2_max']
+    forward_fill_cols = ['weight_lbs', 'body_fat_pct', 'muscle_mass_kg', 'bmi', 'vo2_max']
     for col in forward_fill_cols:
         if col in df.columns:
             df[col] = df[col].ffill()
@@ -97,7 +97,7 @@ def get_weight_n_days_ago(df: pd.DataFrame, n_days: int) -> Optional[float]:
     mask = df.index <= target_date
     if mask.any():
         closest = df[mask].iloc[-1]
-        return closest.get('weight_kg')
+        return closest.get('weight_lbs')
     return None
 
 

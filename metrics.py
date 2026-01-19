@@ -11,12 +11,10 @@ from config import (
     CARDIO_SESSIONS_PER_WEEK,
     CARDIO_MIN_PER_SESSION,
     CARDIO_KM_PER_WEEK,
-    WEIGHT_GOAL_KG,
     WEIGHT_GOAL_LBS,
     BODY_FAT_GOAL_PCT,
     SLEEP_HOURS_MIN,
     SLEEP_DAYS_PER_WEEK,
-    KG_TO_LBS,
     get_protein_target,
 )
 
@@ -90,16 +88,12 @@ def sleep_days_progress(df_week: pd.DataFrame) -> tuple[int, int, float]:
 
 
 # === BODY METRICS ===
-# NOTE: Despite column name "weight_kg", the data is actually in LBS already!
 
 def get_weight_lbs(weight_col_value: Optional[float]) -> Optional[float]:
-    """
-    Get weight in lbs. 
-    NOTE: The CSV column is named 'weight_kg' but actually contains lbs!
-    """
+    """Get weight in lbs directly from weight_lbs column."""
     if weight_col_value is None or pd.isna(weight_col_value):
         return None
-    return weight_col_value  # Already in lbs, no conversion needed
+    return weight_col_value
 
 
 def weight_change_lbs(current_lbs: Optional[float], previous_lbs: Optional[float]) -> Optional[float]:
@@ -134,12 +128,12 @@ def body_fat_change(current_pct: Optional[float], previous_pct: Optional[float])
 
 # === PROTEIN METRICS ===
 
-def protein_status(protein_g: float, weight_kg: float) -> tuple[str, float, float]:
+def protein_status(protein_g: float, weight_lbs: float) -> tuple[str, float, float]:
     """
     Returns (status, target, difference) for protein intake.
     Status: 'low', 'good', 'high'
     """
-    min_p, target, max_p = get_protein_target(weight_kg)
+    min_p, target, max_p = get_protein_target(weight_lbs)
     
     if protein_g < min_p:
         return ('low', target, protein_g - min_p)

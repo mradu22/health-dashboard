@@ -4,12 +4,14 @@ Configuration for health dashboard goals and targets.
 from __future__ import annotations
 from datetime import date
 
+# === PROJECT VERSION ===
+VERSION = "0.2.0"
+
 # === UNIT CONVERSIONS ===
 KG_TO_LBS = 2.205
 
 # === BODY GOALS ===
 WEIGHT_GOAL_LBS = 180
-WEIGHT_GOAL_KG = WEIGHT_GOAL_LBS / KG_TO_LBS  # ~81.6 kg
 BODY_FAT_GOAL_PCT = 16.0
 
 # === WORKOUT GOALS ===
@@ -24,12 +26,11 @@ CARDIO_KM_PER_WEEK = 25
 # Protein target = body weight in lbs (in grams) ± 15g
 PROTEIN_TOLERANCE_G = 15
 
-def get_protein_target(weight_kg: float) -> tuple[float, float, float]:
+def get_protein_target(weight_lbs: float) -> tuple[float, float, float]:
     """
     Returns (min, target, max) protein in grams based on weight.
     Target = weight in lbs (in grams)
     """
-    weight_lbs = weight_kg * KG_TO_LBS
     target = weight_lbs
     return (target - PROTEIN_TOLERANCE_G, target, target + PROTEIN_TOLERANCE_G)
 
