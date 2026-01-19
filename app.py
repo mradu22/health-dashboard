@@ -18,13 +18,14 @@ from data_loader import (
     get_n_days_data,
     get_weight_n_days_ago,
     get_body_fat_n_days_ago,
+    get_vo2_max_n_days_ago,
 )
 from metrics import (
     gym_goal_progress,
     cardio_sessions_progress,
     cardio_km_week_progress,
     sleep_days_progress,
-    kg_to_lbs,
+    get_weight_lbs,
     weight_change_lbs,
     weight_to_goal_lbs,
     body_fat_to_goal,
@@ -36,7 +37,7 @@ from metrics import (
 from config import (
     WEIGHT_GOAL_LBS,
     BODY_FAT_GOAL_PCT,
-    KG_TO_LBS,
+    SLEEP_HOURS_MIN,
 )
 
 # === PAGE CONFIG ===
@@ -200,11 +201,11 @@ def create_trend_chart(df: pd.DataFrame, column: str, title: str,
 
 
 def create_weight_chart_lbs(df: pd.DataFrame) -> go.Figure:
-    """Create weight chart in lbs with goal line."""
+    """Create weight chart in lbs (data already in lbs despite column name)."""
     fig = go.Figure()
     
-    # Convert to lbs
-    weight_lbs = df['weight_kg'] * KG_TO_LBS
+    # Data is already in lbs (column named weight_kg but contains lbs)
+    weight_lbs = df['weight_kg']
     
     # Weight data
     fig.add_trace(go.Scatter(
@@ -216,13 +217,13 @@ def create_weight_chart_lbs(df: pd.DataFrame) -> go.Figure:
         marker=dict(size=5),
     ))
     
-    # Goal line
-    fig.add_hline(
-        y=WEIGHT_GOAL_LBS,
-        line=dict(color='#4CAF50', dash='dash', width=2),
-        annotation_text=f"Goal: {WEIGHT_GOAL_LBS} lbs",
-        annotation_position="right",
-    )
+    # Goal line - COMMENTED OUT to show more detail in data
+    # fig.add_hline(
+    #     y=WEIGHT_GOAL_LBS,
+    #     line=dict(color='#4CAF50', dash='dash', width=2),
+    #     annotation_text=f"Goal: {WEIGHT_GOAL_LBS} lbs",
+    #     annotation_position="right",
+    # )
     
     fig.update_layout(
         title=dict(text="Weight Trend", font=dict(size=14)),
@@ -239,7 +240,7 @@ def create_weight_chart_lbs(df: pd.DataFrame) -> go.Figure:
 
 
 def create_body_fat_chart(df: pd.DataFrame) -> go.Figure:
-    """Create body fat % chart with goal line."""
+    """Create body fat % chart."""
     fig = go.Figure()
     
     # Body fat data
@@ -252,13 +253,13 @@ def create_body_fat_chart(df: pd.DataFrame) -> go.Figure:
         marker=dict(size=5),
     ))
     
-    # Goal line
-    fig.add_hline(
-        y=BODY_FAT_GOAL_PCT,
-        line=dict(color='#4CAF50', dash='dash', width=2),
-        annotation_text=f"Goal: {BODY_FAT_GOAL_PCT}%",
-        annotation_position="right",
-    )
+    # Goal line - COMMENTED OUT to show more detail in data
+    # fig.add_hline(
+    #     y=BODY_FAT_GOAL_PCT,
+    #     line=dict(color='#4CAF50', dash='dash', width=2),
+    #     annotation_text=f"Goal: {BODY_FAT_GOAL_PCT}%",
+    #     annotation_position="right",
+    # )
     
     fig.update_layout(
         title=dict(text="Body Fat Trend", font=dict(size=14)),
@@ -275,7 +276,7 @@ def create_body_fat_chart(df: pd.DataFrame) -> go.Figure:
 
 
 def create_sleep_chart(df: pd.DataFrame) -> go.Figure:
-    """Create stacked bar chart for sleep breakdown."""
+    """Create stacked bar chart for sleep breakdown with 7-hour goal line."""
     fig = go.Figure()
     
     sleep_cols = ['deep_sleep_hours', 'rem_hours', 'core_sleep_hours']
@@ -290,6 +291,14 @@ def create_sleep_chart(df: pd.DataFrame) -> go.Figure:
                 name=name,
                 marker_color=color,
             ))
+    
+    # 7-hour goal line
+    fig.add_hline(
+        y=SLEEP_HOURS_MIN,
+        line=dict(color='#4CAF50', dash='dash', width=2),
+        annotation_text=f"Goal: {SLEEP_HOURS_MIN:.0f}h",
+        annotation_position="right",
+    )
     
     fig.update_layout(
         barmode='stack',
@@ -331,7 +340,7 @@ def main():
     # === DAILY METRICS (9 metrics in 3 rows of 3) ===
     st.markdown('<div class="section-header">📊 Daily Metrics</div>', unsafe_allow_html=True)
     
-    # Row 1: Steps, Total Sleep, Deep Sleep
+    # Row 1: Steps, Total Sleep, VO2 Max (swapped from deep sleep)
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -347,19 +356,23 @@ def main():
         st.metric("Total Sleep", f"{sleep:.1f}h", delta=format_delta(sleep_delta, "h"))
     
     with col3:
-        deep = today.get('deep_sleep_hours', 0)
-        deep_yd = yesterday.get('deep_sleep_hours') if yesterday is not None else None
-        deep_delta = deep - deep_yd if deep and deep_yd else None
-        st.metric("Deep Sleep", f"{deep:.2f}h" if deep else "—", delta=format_delta(deep_delta, "h") if deep_delta else None)
+        # VO2 Max with delta (swapped from deep sleep)
+        vo2 = today.get('vo2_max')
+        vo2_yd = yesterday.get('vo2_max') if yesterday is not None else None
+        vo2_delta = vo2 - vo2_yd if vo2 and vo2_yd else None
+        if vo2:
+            st.metric("VO2 Max", f"{vo2:.1f}", delta=format_delta(vo2_delta))
+        else:
+            st.metric("VO2 Max", "—")
     
     # Row 2: Weight, Body Fat, HRV
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        weight_kg = today.get('weight_kg')
-        weight_lbs = kg_to_lbs(weight_kg)
-        weight_yd_kg = yesterday.get('weight_kg') if yesterday is not None else None
-        w_delta_lbs = weight_change_lbs(weight_kg, weight_yd_kg) if weight_kg and weight_yd_kg else None
+        # NOTE: weight_kg column actually contains lbs (mislabeled in source data)
+        weight_lbs = get_weight_lbs(today.get('weight_kg'))
+        weight_yd_lbs = get_weight_lbs(yesterday.get('weight_kg')) if yesterday is not None else None
+        w_delta_lbs = weight_change_lbs(weight_lbs, weight_yd_lbs) if weight_lbs and weight_yd_lbs else None
         if weight_lbs:
             st.metric("Weight", f"{weight_lbs:.1f} lbs", delta=format_delta(w_delta_lbs, " lbs"), delta_color=delta_color(w_delta_lbs, inverse=True))
         else:
@@ -397,9 +410,11 @@ def main():
     
     with col2:
         protein = today.get('protein_g')
-        weight_kg = today.get('weight_kg')
-        if protein and weight_kg:
-            status, target, diff = protein_status(protein, weight_kg)
+        # For protein target, use weight in lbs (which is what weight_kg actually contains)
+        weight_for_protein = today.get('weight_kg')  # Already in lbs
+        if protein and weight_for_protein:
+            # Protein target = weight in lbs as grams
+            target = weight_for_protein
             st.metric("Protein", f"{protein:.0f}g", delta=f"Target: {target:.0f}g")
         elif protein:
             st.metric("Protein", f"{protein:.0f}g")
@@ -444,9 +459,10 @@ def main():
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        weight_kg = today.get('weight_kg')
-        weight_1w_kg = get_weight_n_days_ago(df, 7)
-        change_1w = weight_change_lbs(weight_kg, weight_1w_kg)
+        # Weight is already in lbs (despite column name)
+        weight_lbs = get_weight_lbs(today.get('weight_kg'))
+        weight_1w_lbs = get_weight_lbs(get_weight_n_days_ago(df, 7))
+        change_1w = weight_change_lbs(weight_lbs, weight_1w_lbs)
         color_1w = '#4CAF50' if change_1w and change_1w < 0 else '#FF5252' if change_1w and change_1w > 0 else '#fff'
         st.markdown(f"""
         <div class="trend-card">
@@ -458,8 +474,8 @@ def main():
         """, unsafe_allow_html=True)
     
     with col2:
-        weight_1m_kg = get_weight_n_days_ago(df, 30)
-        change_1m = weight_change_lbs(weight_kg, weight_1m_kg)
+        weight_1m_lbs = get_weight_lbs(get_weight_n_days_ago(df, 30))
+        change_1m = weight_change_lbs(weight_lbs, weight_1m_lbs)
         color_1m = '#4CAF50' if change_1m and change_1m < 0 else '#FF5252' if change_1m and change_1m > 0 else '#fff'
         st.markdown(f"""
         <div class="trend-card">
@@ -529,19 +545,18 @@ def main():
             fig = create_trend_chart(df_7d, 'hrv', 'HRV Trend', color='#9C27B0', y_label='ms')
             st.plotly_chart(fig, use_container_width=True)
     
-    # Sleep stats
+    # Sleep stats - Deep Sleep moved here (swapped with VO2 Max)
     col1, col2 = st.columns(2)
     
     with col1:
-        med_streak = meditation_streak(df)
-        st.metric("Meditation Streak", f"{med_streak} days")
+        deep = today.get('deep_sleep_hours', 0)
+        deep_yd = yesterday.get('deep_sleep_hours') if yesterday is not None else None
+        deep_delta = deep - deep_yd if deep and deep_yd else None
+        st.metric("Deep Sleep", f"{deep:.2f}h" if deep else "—", delta=format_delta(deep_delta, "h") if deep_delta else None)
     
     with col2:
-        vo2 = today.get('vo2_max')
-        if vo2:
-            st.metric("VO2 Max", f"{vo2:.1f}")
-        else:
-            st.metric("VO2 Max", "—")
+        med_streak = meditation_streak(df)
+        st.metric("Meditation Streak", f"{med_streak} days")
     
     # === NUTRITION ===
     if today.get('protein_g') or today.get('calories'):

@@ -90,29 +90,32 @@ def sleep_days_progress(df_week: pd.DataFrame) -> tuple[int, int, float]:
 
 
 # === BODY METRICS ===
+# NOTE: Despite column name "weight_kg", the data is actually in LBS already!
 
-def kg_to_lbs(kg: Optional[float]) -> Optional[float]:
-    """Convert kg to lbs."""
-    if kg is None or pd.isna(kg):
+def get_weight_lbs(weight_col_value: Optional[float]) -> Optional[float]:
+    """
+    Get weight in lbs. 
+    NOTE: The CSV column is named 'weight_kg' but actually contains lbs!
+    """
+    if weight_col_value is None or pd.isna(weight_col_value):
         return None
-    return kg * KG_TO_LBS
+    return weight_col_value  # Already in lbs, no conversion needed
 
 
-def weight_change_lbs(current_kg: Optional[float], previous_kg: Optional[float]) -> Optional[float]:
+def weight_change_lbs(current_lbs: Optional[float], previous_lbs: Optional[float]) -> Optional[float]:
     """Calculate weight change in lbs."""
-    if current_kg is None or previous_kg is None:
+    if current_lbs is None or previous_lbs is None:
         return None
-    if pd.isna(current_kg) or pd.isna(previous_kg):
+    if pd.isna(current_lbs) or pd.isna(previous_lbs):
         return None
-    return (current_kg - previous_kg) * KG_TO_LBS
+    return current_lbs - previous_lbs  # Already in lbs
 
 
-def weight_to_goal_lbs(current_kg: Optional[float]) -> Optional[float]:
+def weight_to_goal_lbs(current_lbs: Optional[float]) -> Optional[float]:
     """Calculate lbs remaining to weight goal."""
-    if current_kg is None or pd.isna(current_kg):
+    if current_lbs is None or pd.isna(current_lbs):
         return None
-    current_lbs = current_kg * KG_TO_LBS
-    return current_lbs - WEIGHT_GOAL_LBS
+    return current_lbs - WEIGHT_GOAL_LBS  # Already in lbs
 
 
 def body_fat_to_goal(current_pct: float) -> float:
