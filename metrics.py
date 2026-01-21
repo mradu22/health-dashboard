@@ -11,6 +11,7 @@ from config import (
     CARDIO_SESSIONS_PER_WEEK,
     CARDIO_MIN_PER_SESSION,
     CARDIO_KM_PER_WEEK,
+    STRETCH_SESSIONS_PER_WEEK,
     WEIGHT_GOAL_LBS,
     BODY_FAT_GOAL_PCT,
     SLEEP_HOURS_MIN,
@@ -71,6 +72,20 @@ def cardio_km_week_progress(df_week: pd.DataFrame) -> tuple[float, float, float]
     goal = CARDIO_KM_PER_WEEK
     pct = min(current / goal * 100, 100) if goal > 0 else 0
     return (current, goal, pct)
+
+
+def stretch_sessions_progress(df_week: pd.DataFrame) -> tuple[int, int, float]:
+    """
+    Returns (current, goal, percentage) for stretch sessions this week.
+    Stretch session = day with stretch_min > 0.
+    """
+    if 'stretch_min' not in df_week.columns:
+        return (0, STRETCH_SESSIONS_PER_WEEK, 0)
+    
+    current = (df_week['stretch_min'] > 0).sum()
+    goal = STRETCH_SESSIONS_PER_WEEK
+    pct = min(current / goal * 100, 100) if goal > 0 else 0
+    return (int(current), goal, pct)
 
 
 def sleep_days_progress(df_week: pd.DataFrame) -> tuple[int, int, float]:

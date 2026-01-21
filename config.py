@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 
 # === PROJECT VERSION ===
-VERSION = "0.3.1"
+VERSION = "0.4.0"
 
 # === UNIT CONVERSIONS ===
 KG_TO_LBS = 2.205
@@ -18,6 +18,7 @@ BODY_FAT_GOAL_PCT = 16.0
 GYM_SESSIONS_PER_WEEK = 3
 CARDIO_SESSIONS_PER_WEEK = 5
 CARDIO_MIN_PER_SESSION = 15  # minimum minutes to count as cardio session
+STRETCH_SESSIONS_PER_WEEK = 5
 
 # === CARDIO DISTANCE GOALS ===
 CARDIO_KM_PER_WEEK = 25

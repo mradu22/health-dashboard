@@ -25,6 +25,7 @@ from metrics import (
     gym_goal_progress,
     cardio_sessions_progress,
     cardio_km_week_progress,
+    stretch_sessions_progress,
     sleep_days_progress,
     get_weight_lbs,
     weight_change_lbs,
@@ -544,10 +545,10 @@ def main():
         deadlift = today.get('deadlift_lbs')
         st.metric("Deadlift", f"{deadlift:.0f} lbs" if deadlift else "—")
     
-    # === WEEKLY GOALS (4 rings) ===
+    # === WEEKLY GOALS (5 rings) ===
     st.markdown('<div class="section-header">Weekly Goals</div>', unsafe_allow_html=True)
     
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         gym_current, gym_goal, gym_pct = gym_goal_progress(week_data)
@@ -560,11 +561,16 @@ def main():
         st.plotly_chart(fig, use_container_width=True)
     
     with col3:
+        stretch_current, stretch_goal, stretch_pct = stretch_sessions_progress(week_data)
+        fig = create_progress_ring(stretch_current, stretch_goal, "STRETCH")
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with col4:
         km_current, km_goal, km_pct = cardio_km_week_progress(week_data)
         fig = create_progress_ring(km_current, km_goal, "WEEKLY KM")
         st.plotly_chart(fig, use_container_width=True)
     
-    with col4:
+    with col5:
         sleep_current, sleep_goal, sleep_pct = sleep_days_progress(week_data)
         fig = create_progress_ring(sleep_current, sleep_goal, "7+ HR SLEEP")
         st.plotly_chart(fig, use_container_width=True)
