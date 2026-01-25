@@ -39,8 +39,13 @@ def load_data() -> pd.DataFrame:
     
     df = df.set_index('date').sort_index()
     
+    # Filter to only show data from Jan 12, 2026 onwards
+    jan_12_2026 = pd.Timestamp('2026-01-12')
+    df = df[df.index >= jan_12_2026]
+    
     # Forward-fill certain columns that should persist
-    forward_fill_cols = ['weight_lbs', 'body_fat_pct', 'muscle_mass_kg', 'bmi', 'vo2_max']
+    forward_fill_cols = ['weight_lbs', 'body_fat_pct', 'muscle_mass_kg', 'bmi', 'vo2_max', 
+                         'squat_lbs', 'bench_lbs', 'deadlift_lbs']
     for col in forward_fill_cols:
         if col in df.columns:
             df[col] = df[col].ffill()

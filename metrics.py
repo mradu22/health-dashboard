@@ -11,6 +11,7 @@ from config import (
     CARDIO_SESSIONS_PER_WEEK,
     CARDIO_MIN_PER_SESSION,
     CARDIO_KM_PER_WEEK,
+    STRETCH_SESSIONS_PER_WEEK,
     WEIGHT_GOAL_LBS,
     BODY_FAT_GOAL_PCT,
     SLEEP_HOURS_MIN,
@@ -36,10 +37,10 @@ def count_cardio_sessions(df: pd.DataFrame, min_minutes: float = CARDIO_MIN_PER_
 
 
 def get_total_distance_km(df: pd.DataFrame) -> float:
-    """Get total distance in km."""
-    if 'distance_km' not in df.columns:
+    """Get total running distance in km."""
+    if 'run_km' not in df.columns:
         return 0.0
-    return df['distance_km'].sum()
+    return df['run_km'].sum()
 
 
 def gym_goal_progress(df_week: pd.DataFrame) -> tuple[int, int, float]:
@@ -78,16 +79,13 @@ def stretch_sessions_progress(df_week: pd.DataFrame) -> tuple[int, int, float]:
     Returns (current, goal, percentage) for stretch sessions this week.
     Stretch session = day with stretch_min > 0.
     """
-    from config import STRETCH_SESSIONS_PER_WEEK
-    
     if 'stretch_min' not in df_week.columns:
         return (0, STRETCH_SESSIONS_PER_WEEK, 0)
     
-    valid = df_week['stretch_min'].notna()
-    current = (df_week.loc[valid, 'stretch_min'] > 0).sum()
+    current = (df_week['stretch_min'] > 0).sum()
     goal = STRETCH_SESSIONS_PER_WEEK
     pct = min(current / goal * 100, 100) if goal > 0 else 0
-    return (current, goal, pct)
+    return (int(current), goal, pct)
 
 
 def sleep_days_progress(df_week: pd.DataFrame) -> tuple[int, int, float]:
