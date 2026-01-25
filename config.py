@@ -22,6 +22,9 @@ CARDIO_MIN_PER_SESSION = 15  # minimum minutes to count as cardio session
 # === CARDIO DISTANCE GOALS ===
 CARDIO_KM_PER_WEEK = 25
 
+# === STRETCH GOALS ===
+STRETCH_SESSIONS_PER_WEEK = 3
+
 # === PROTEIN GOAL ===
 # Protein target = body weight in lbs (in grams) ± 15g
 PROTEIN_TOLERANCE_G = 15

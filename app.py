@@ -544,6 +544,12 @@ def main():
         deadlift = today.get('deadlift_lbs')
         st.metric("Deadlift", f"{deadlift:.0f} lbs" if deadlift else "—")
     
+    # === WEEKLY PROGRESS HEATMAP ===
+    st.markdown('<div class="section-header">Weekly Progress Heatmap</div>', unsafe_allow_html=True)
+    from weekly_progress import create_weekly_progress_heatmap
+    fig_heatmap = create_weekly_progress_heatmap(df)
+    st.plotly_chart(fig_heatmap, use_container_width=True, config={'displayModeBar': False})
+    
     # === WEEKLY GOALS (4 rings) ===
     st.markdown('<div class="section-header">Weekly Goals</div>', unsafe_allow_html=True)
     
