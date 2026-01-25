@@ -37,10 +37,10 @@ def count_cardio_sessions(df: pd.DataFrame, min_minutes: float = CARDIO_MIN_PER_
 
 
 def get_total_distance_km(df: pd.DataFrame) -> float:
-    """Get total distance in km."""
-    if 'distance_km' not in df.columns:
+    """Get total running distance in km."""
+    if 'run_km' not in df.columns:
         return 0.0
-    return df['distance_km'].sum()
+    return df['run_km'].sum()
 
 
 def gym_goal_progress(df_week: pd.DataFrame) -> tuple[int, int, float]:

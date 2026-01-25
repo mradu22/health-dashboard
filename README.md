@@ -48,14 +48,17 @@ Personal health tracking dashboard built with Streamlit.
 The dashboard reads from a CSV with health metrics exported from Apple Health.
 
 **Columns expected:**
-- `date`, `steps`, `active_cal`, `distance_km`
+- `date`, `steps`, `active_cal`, `walk_and_run_distance_km`, `run_km`
 - `strength_training_min`, `cardio_min`, `stretch_min`, `workout_avg_hr`
 - `sleep_hours`, `deep_sleep_hours`, `rem_hours`, `core_sleep_hours`, `awake_hours`, `sleep_interruptions`
 - `protein_g`, `carbs_g`, `fat_g`, `calories`, `sodium_mg`
-- `weight_kg`, `body_fat_pct`, `muscle_mass_kg`, `bmi`
+- `weight_lbs`, `body_fat_pct`, `muscle_mass_kg`, `bmi`
 - `resting_hr`, `rsr`, `vo2_max`, `hrv`, `meditation_min`
+- `squat_lbs`, `bench_lbs`, `deadlift_lbs`
 
 ## Notes
 
-- `distance_km` currently includes walk + run combined (running-specific km to be added)
+- `run_km` = running distance only (extracted from running workouts)
+- `walk_and_run_distance_km` = combined walking + running distance (from Apple Health)
+- Dashboard uses `run_km` for cardio goals
 - Data auto-refreshes every 5 minutes when the page is open

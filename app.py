@@ -278,12 +278,17 @@ def create_weight_chart_lbs(df: pd.DataFrame) -> Tuple[go.Figure, str]:
     """Create weight chart in lbs with 7-day avg. Returns (figure, latex_equation)."""
     fig = go.Figure()
     
-    weight_lbs = df['weight_lbs'].dropna()
+    # Filter to only non-NaN values for plotting
+    df_clean = df[df['weight_lbs'].notna()].copy()
+    if len(df_clean) == 0:
+        return fig, ""
+    
+    weight_lbs = df_clean['weight_lbs']
     
     # Weight data points with line (larger markers)
     fig.add_trace(go.Scatter(
-        x=df.index,
-        y=df['weight_lbs'],
+        x=df_clean.index,
+        y=df_clean['weight_lbs'],
         mode='markers+lines',
         name='Daily',
         line=dict(color='#2196F3', width=1),
@@ -293,9 +298,9 @@ def create_weight_chart_lbs(df: pd.DataFrame) -> Tuple[go.Figure, str]:
     
     # 7-day rolling average
     if len(weight_lbs) >= 3:
-        rolling_7d = rolling_average(df, 'weight_lbs', window=7)
+        rolling_7d = rolling_average(df_clean, 'weight_lbs', window=7)
         fig.add_trace(go.Scatter(
-            x=df.index,
+            x=df_clean.index,
             y=rolling_7d,
             mode='lines',
             name='7d Avg',
@@ -332,12 +337,17 @@ def create_body_fat_chart(df: pd.DataFrame) -> Tuple[go.Figure, str]:
     """Create body fat % chart with 7-day avg. Returns (figure, latex_equation)."""
     fig = go.Figure()
     
-    body_fat = df['body_fat_pct'].dropna()
+    # Filter to only non-NaN values for plotting
+    df_clean = df[df['body_fat_pct'].notna()].copy()
+    if len(df_clean) == 0:
+        return fig, ""
+    
+    body_fat = df_clean['body_fat_pct']
     
     # Body fat data points with line (larger markers)
     fig.add_trace(go.Scatter(
-        x=df.index,
-        y=df['body_fat_pct'],
+        x=df_clean.index,
+        y=df_clean['body_fat_pct'],
         mode='markers+lines',
         name='Daily',
         line=dict(color='#FF9800', width=1),
@@ -347,9 +357,9 @@ def create_body_fat_chart(df: pd.DataFrame) -> Tuple[go.Figure, str]:
     
     # 7-day rolling average
     if len(body_fat) >= 3:
-        rolling_7d = rolling_average(df, 'body_fat_pct', window=7)
+        rolling_7d = rolling_average(df_clean, 'body_fat_pct', window=7)
         fig.add_trace(go.Scatter(
-            x=df.index,
+            x=df_clean.index,
             y=rolling_7d,
             mode='lines',
             name='7d Avg',
