@@ -119,30 +119,35 @@ def get_goal_config() -> List[Dict[str, Any]]:
             "label": "Strength",
             "goal": GYM_SESSIONS_PER_WEEK,
             "unit": "sessions",
+            "weight": 1.0,
         },
         {
             "id": "cardio",
             "label": "Cardio",
             "goal": CARDIO_SESSIONS_PER_WEEK,
             "unit": "sessions",
+            "weight": 1.0,
         },
         {
             "id": "stretch",
             "label": "Stretch",
             "goal": STRETCH_SESSIONS_PER_WEEK,
             "unit": "sessions",
+            "weight": 0.7,
         },
         {
             "id": "weekly_km",
-            "label": "Weekly KM",
+            "label": "Run",
             "goal": CARDIO_KM_PER_WEEK,
             "unit": "km",
+            "weight": 1.3,
         },
         {
             "id": "sleep",
-            "label": "7hr Sleep",
+            "label": "Sleep",
             "goal": SLEEP_DAYS_PER_WEEK,
             "unit": "days",
+            "weight": 1.5,
         },
     ]
 
@@ -193,6 +198,36 @@ def build_weekly_progress_matrix(df: pd.DataFrame, year: int) -> Tuple[pd.DataFr
         
         values_matrix.append(value_row)
         percentages_matrix.append(pct_row)
+    
+    # Calculate totals row (weighted average)
+    totals_value_row = []
+    totals_pct_row = []
+    weights = [g.get("weight", 1.0) for g in goals]
+    
+    for week_idx in range(len(weeks)):
+        week_num, week_start = weeks[week_idx]
+        if week_start > today:
+            totals_value_row.append("—")
+            totals_pct_row.append(None)
+        else:
+            weighted_sum = 0.0
+            valid_weights = 0.0
+            for i, pct_row in enumerate(percentages_matrix):
+                pct = pct_row[week_idx]
+                if pct is not None and not (isinstance(pct, float) and np.isnan(pct)):
+                    weighted_sum += pct * weights[i]
+                    valid_weights += weights[i]
+            if valid_weights > 0:
+                avg_pct = weighted_sum / valid_weights
+                totals_pct_row.append(avg_pct)
+                totals_value_row.append(f"{avg_pct:.0f}%")
+            else:
+                totals_value_row.append("—")
+                totals_pct_row.append(0.0)
+    
+    values_matrix.append(totals_value_row)
+    percentages_matrix.append(totals_pct_row)
+    goal_labels.append("Totals")
     
     # Create DataFrames - use just week numbers for cleaner look
     week_labels = [str(w[0]) for w in weeks]  # Just "1", "2", "3" instead of "Week 1", "Week 2"
@@ -433,6 +468,10 @@ def create_weekly_progress_heatmap(df: pd.DataFrame, year: int = None) -> go.Fig
     weeks = get_all_weeks_in_year(year)
     today = pd.Timestamp.now()
     
+    # Update index to uppercase to match weekly goals style
+    values_df.index = [label.upper() for label in values_df.index]
+    percentages_df.index = values_df.index
+    
     # Build color matrix and hover text
     num_goals = len(values_df.index)
     num_weeks = len(values_df.columns)
@@ -482,12 +521,15 @@ def create_weekly_progress_heatmap(df: pd.DataFrame, year: int = None) -> go.Fig
         hover_text.append(hover_row)
         z_data.append(z_row)
     
-    # Create month labels for X-axis
+    # Create month labels for X-axis (excluding December)
     month_ticks = []
     month_labels = []
     current_month = None
     for week_num, week_start in weeks:
         month = week_start.strftime('%b')
+        # Skip December
+        if month == 'Dec':
+            continue
         if month != current_month:
             month_ticks.append(str(week_num))
             month_labels.append(month)
@@ -519,7 +561,7 @@ def create_weekly_progress_heatmap(df: pd.DataFrame, year: int = None) -> go.Fig
             zmin=-10,
             zmax=100,
             showscale=False,
-            xgap=4,   # Gap between cells - larger for CodePen style
+            xgap=4.2,   # Gap between cells - 5% more space (4 * 1.05 = 4.2)
             ygap=4,   # Gap between cells
         )
     )
@@ -563,20 +605,23 @@ def create_weekly_progress_heatmap(df: pd.DataFrame, year: int = None) -> go.Fig
             tickvals=month_ticks,
             ticktext=month_labels,
             tickangle=0,
-            tickfont=dict(size=13, color="#8b949e", family="system-ui, -apple-system, sans-serif"),
+            tickfont=dict(size=12, color="#a0a0a0", family="system-ui, -apple-system, sans-serif"),
             showgrid=False,
             showline=False,
             zeroline=False,
             side='bottom',
             fixedrange=True,
+            showticklabels=True,  # Show month labels but no tick marks
+            ticks='',  # Remove tick marks
         ),
         yaxis=dict(
-            tickfont=dict(size=14, color="#ffffff", family="system-ui, -apple-system, sans-serif"),
+            tickfont=dict(size=12, color="#a0a0a0", family="system-ui, -apple-system, sans-serif"),
             showgrid=False,
             showline=False,
             zeroline=False,
             autorange='reversed',  # First goal at top
             fixedrange=True,
+            ticks='',  # Remove tick marks
             # Maintain square cells: aspect ratio = num_goals / num_weeks
             # This ensures cell_width = cell_height as container resizes
             scaleanchor='x',
